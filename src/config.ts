@@ -123,9 +123,9 @@ export function getConfigFromUserConfig (userConfig: any): Config {
 }
 
 export async function loadConfig (context: Context): Promise<Config> {
-  const userConfig = await getConfig(context, 'auto-merge.yml', null)
+  const userConfig = await getConfig(context, 'auto-merge-2.yml', null)
   if (!userConfig) {
-    throw new ConfigNotFoundError('.github/auto-merge.yml')
+    throw new ConfigNotFoundError('.github/auto-merge-2.yml')
   }
   return getConfigFromUserConfig(userConfig)
 }
