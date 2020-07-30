@@ -5,11 +5,22 @@ import { groupByLastMap, flatMap } from '../utils'
 import { CheckStatusState } from '../github-models'
 import myAppId from '../myappid'
 
+function requiredChecks (pullRequestInfo: PullRequestInfo): Array<String> {
+  const baseRef = pullRequestInfo.baseRef.name
+  const branchProtectionRules = pullRequestInfo.repository.branchProtectionRules
+  const branchProtectionRulesForBaseRef = branchProtectionRules.nodes.find(rules => rules.pattern === baseRef)
+  if (branchProtectionRulesForBaseRef) {
+    return branchProtectionRulesForBaseRef.requiredStatusCheckContexts
+  }
+  return []
+}
+
 export default function doesNotHaveBlockingChecks (
   config: ConditionConfig,
   pullRequestInfo: PullRequestInfo
 ): ConditionResult {
-  const checkRuns = flatMap(pullRequestInfo.commits.nodes,
+  const requiredChecksNames = requiredChecks(pullRequestInfo)
+  let checkRuns = flatMap(pullRequestInfo.commits.nodes,
     commit => flatMap(commit.commit.checkSuites.nodes,
       checkSuite => checkSuite.checkRuns.nodes.map(
         checkRun => ({
@@ -17,7 +28,25 @@ export default function doesNotHaveBlockingChecks (
           checkSuite
         }))
     )
-  ).filter(checkRun => (checkRun.checkSuite.app && checkRun.checkSuite.app.databaseId) !== myAppId)
+  ).filter(checkRun => (
+    checkRun.checkSuite.app && checkRun.checkSuite.app.databaseId) !== myAppId
+  )
+  if (config.blockingRequiredChecksOnly) {
+    checkRuns = checkRuns.filter(
+      checkRun => requiredChecksNames.includes(checkRun.name)
+    )
+    console.log({
+      pullRequestNumber: pullRequestInfo.number,
+      requiredChecksNames: requiredChecksNames,
+      checkRuns: checkRuns
+    })
+    if (checkRuns.length !== requiredChecksNames.length) {
+      return {
+        status: 'pending',
+        message: 'There are still pending required checks'
+      }
+    }
+  }
   const allChecksCompleted = checkRuns.every(
     checkRun => checkRun.status === CheckStatusState.COMPLETED
   )
